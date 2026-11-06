@@ -3,7 +3,7 @@ import struct
 import torch
 from safetensors import safe_open
 
-model_path = "C:/Users/somoa/Desktop/Files/Projects/CPP/CUDA/smoll-inference-engine/dist/model.safetensors"
+model_path = "/dist/model.safetensors"
 output_bin = "model.bin"
 
 # SmolLM2-135M Architecture Parameters
