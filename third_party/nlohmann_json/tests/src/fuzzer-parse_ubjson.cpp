@@ -1,0 +1,122 @@
+//     __ _____ _____ _____
+//  __|  |   __|     |   | |  JSON for Modern C++ (supporting code)
+// |  |  |__   |  |  | | | |  version 3.12.0
+// |_____|_____|_____|_|___|  https://github.com/nlohmann/json
+//
+// SPDX-FileCopyrightText: 2013-2026 Niels Lohmann <https://nlohmann.me>
+// SPDX-License-Identifier: MIT
+
+/*
+This file implements a parser test suitable for fuzz testing. Given a byte
+array data, it performs the following steps:
+
+- j0 = from_ubjson(data, allow_exceptions = false)
+- j1 = from_ubjson(data)
+- assert(j0 is discarded if parsing j1 fails, and j0 == j1 otherwise)
+- vec2 = to_ubjson(j1, use_size = false, use_type = false)
+- vec3 = to_ubjson(j1, use_size = true, use_type = false)
+- vec4 = to_ubjson(j1, use_size = true, use_type = true)
+- j2 = from_ubjson(vec2)
+- j3 = from_ubjson(vec3)
+- j4 = from_ubjson(vec4)
+- assert(to_ubjson(j2, use_size = false, use_type = false) == vec2)
+- assert(to_ubjson(j3, use_size = true, use_type = false) == vec3)
+- assert(to_ubjson(j4, use_size = true, use_type = true) == vec4)
+
+The unit tests run the same checks on a fixed corpus (see the "UBJSON round-trip
+invariants" test case), so keep both in sync.
+
+Finally, it reads the data from a stream, a non-contiguous iterator range, and
+a FILE*, which read byte by byte, and checks that each gives the same value or
+error (id, message, byte position) as the pointer range, which takes the bulk
+fast paths (see check_input_adapters()).
+
+The provided function `LLVMFuzzerTestOneInput` can be used in different fuzzer
+drivers.
+*/
+
+#include "fuzzer_common.hpp"
+
+namespace
+{
+// json::from_ubjson for check_input_adapters()
+struct read_ubjson
+{
+    template<typename... Args>
+    json operator()(Args&& ... args) const
+    {
+        return json::from_ubjson(std::forward<Args>(args)...);
+    }
+};
+} // namespace
+
+// see http://llvm.org/docs/LibFuzzer.html
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
+{
+    std::vector<uint8_t> const vec1(data, data + size);
+
+    // step 0: parse input without exceptions
+    bool noexcept_threw = false;
+    json const j_noexcept = parse_without_exceptions([&] { return json::from_ubjson(vec1, true, false); }, noexcept_threw);
+    // whether step 1 succeeded; if not, the catch blocks below check that
+    // step 0 failed, too
+    bool parsed = false;
+
+    try
+    {
+        // step 1: parse input
+        json const j1 = json::from_ubjson(vec1);
+        parsed = true;
+
+        // without exceptions, the same input must give the same value
+        assert(!noexcept_threw && !j_noexcept.is_discarded() && same_value(j_noexcept, j1));
+
+        try
+        {
+            // step 2.1: round trip without adding size annotations to container types
+            std::vector<uint8_t> const vec2 = json::to_ubjson(j1, false, false);
+
+            // step 2.2: round trip with adding size annotations but without adding type annotations to container types
+            std::vector<uint8_t> const vec3 = json::to_ubjson(j1, true, false);
+
+            // step 2.3: round trip with adding size as well as type annotations to container types
+            std::vector<uint8_t> const vec4 = json::to_ubjson(j1, true, true);
+
+            // parse serialization
+            json const j2 = json::from_ubjson(vec2);
+            json const j3 = json::from_ubjson(vec3);
+            json const j4 = json::from_ubjson(vec4);
+
+            // serializations must match
+            assert(json::to_ubjson(j2, false, false) == vec2);
+            assert(json::to_ubjson(j3, true, false) == vec3);
+            assert(json::to_ubjson(j4, true, true) == vec4);
+        }
+        catch (const json::parse_error&)
+        {
+            // parsing a UBJSON serialization must not fail
+            assert(false);
+        }
+    }
+    catch (const json::parse_error&)
+    {
+        // parse errors are ok, because input may be random bytes
+        assert(parsed || noexcept_threw || j_noexcept.is_discarded());
+    }
+    catch (const json::type_error&)
+    {
+        // type errors can occur during parsing, too
+        assert(parsed || noexcept_threw || j_noexcept.is_discarded());
+    }
+    catch (const json::out_of_range&)
+    {
+        // out of range errors may happen if provided sizes are excessive
+        assert(parsed || noexcept_threw || j_noexcept.is_discarded());
+    }
+
+    // step 3: the other input adapters must read the data alike
+    check_input_adapters(data, size, read_ubjson());
+
+    // return 0 - non-zero return values are reserved for future use
+    return 0;
+}

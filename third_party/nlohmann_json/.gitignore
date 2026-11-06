@@ -1,0 +1,62 @@
+*.dSYM
+*.o
+*.gcno
+*.gcda
+.DS_Store
+
+/.idea
+/cmake-build-*
+
+# Visual Studio / Visual Studio Code
+/.vs/
+/.vscode/
+/out/
+
+# clangd cache
+/.cache/
+
+# build directories (vscode-cmake-tools, user-defined, ...)
+/build*/
+
+# fuzzers
+/tests/corpus_*
+/tests/parse_*_fuzzer
+
+# documentation
+/docs/docset/JSON_for_Modern_C++.docset/
+/docs/docset/JSON_for_Modern_C++.tgz
+/docs/docset/docSet.dsidx
+/docs/mkdocs/.cache/
+/docs/mkdocs/hooks/__pycache__/
+/docs/mkdocs/scripts/mermaid/node_modules/
+/docs/mkdocs/site/
+/docs/mkdocs/venv/
+
+# serve_header
+/localhost.pem
+/localhost-key.pem
+/serve_header.yml
+
+# Swift Package Manager build directory
+/.build
+
+venv
+
+nlohmann_json.spdx
+
+# Bazel-related
+MODULE.bazel.lock
+
+# backups left by `make check-amalgamation` or the ci_test_amalgamation target if they are interrupted
+/BUILD.bazel~
+/nlohmann_json.natvis~
+/single_include/nlohmann/*.hpp~
+/venv_astyle/
+
+# release outputs of `make release`
+/include.zip
+/include.zip.asc
+/json.tar.xz
+/json.tar.xz.asc
+/release_files/
+/single_include/nlohmann/*.asc
